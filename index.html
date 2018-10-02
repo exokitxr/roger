@@ -991,20 +991,7 @@ connection.onopen = () => {
 
                     let textureImagePromise;
                     if (textureData.length > 0) {
-                      return new Promise((accept, reject) => {
-                        const objectUrl = URL.createObjectURL(new Blob([textureData], {type: 'image/jpeg'}));
-
-                        const textureImage = new Image();
-                        textureImage.onload = () => {
-                          createImageBitmap(textureImage)
-                            .then(accept, reject)
-                            .finally(() => {
-                              URL.revokeObjectURL(objectUrl);
-                            });
-                        };
-                        textureImage.onerror = reject;
-                        textureImage.src = objectUrl;
-                      })
+                      return createImageBitmap(new Blob([textureData], {type: 'image/jpeg'}))
                         .then(textureImage => {
                           const update = {
                             vertexArray,
