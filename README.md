@@ -1,5 +1,5 @@
 # roger
-Reality projection server for Magic Leap
+Reality projection server for Magic Leap.
 
 This is a hub server for reality projection using [Magic Leap](https://magicleap.com) and [Exokit](https://github.com/webmixedreality/exokit).
 
