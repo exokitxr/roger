@@ -74,6 +74,25 @@ const _requestImage = src => new Promise((accept, reject) => {
     reject(err);
   };
 });
+const fetchQueues = [];
+let fetchesRunning = 0;
+const maxConcurrentFetches = 3;
+function fetchQueued(fn) {
+  if (fetchesRunning < maxConcurrentFetches) {
+    fetchesRunning++;
+
+    fn()
+      .finally(() => {
+        fetchesRunning--;
+
+        if (fetchQueues.length > 0 && fetchesRunning < maxConcurrentFetches) {
+          fetchQueued(fetchQueues.shift());
+        }
+      });
+  } else {
+    fetchQueues.push(fn);
+  }
+}
 
 var controlsEnabled = false;
 var moveForward = false;
@@ -971,47 +990,51 @@ connection.onopen = () => {
 
               const terrainMesh = _getTerrainMesh(id);
               terrainMesh.next = next => {
-                fetch('/data/' + dataId)
-                  .then(res => res.ok ? res.arrayBuffer() : Promise.reject(new Error('not ok')))
-                  .then(arrayBuffer => {
-                    let i = 0;
-                    const vertexCount = new Uint32Array(arrayBuffer, i, 1)[0];
-                    i += Uint32Array.BYTES_PER_ELEMENT;
-                    const vertexArray = new Float32Array(arrayBuffer, i, vertexCount);
-                    i += Float32Array.BYTES_PER_ELEMENT * vertexCount;
+                fetchQueued(() =>
+                  fetch('/data/' + dataId)
+                    .then(res => res.ok ? res.arrayBuffer() : Promise.reject(new Error('not ok')))
+                    .then(arrayBuffer => {
+                      let i = 0;
+                      const vertexCount = new Uint32Array(arrayBuffer, i, 1)[0];
+                      i += Uint32Array.BYTES_PER_ELEMENT;
+                      const vertexArray = new Float32Array(arrayBuffer, i, vertexCount);
+                      i += Float32Array.BYTES_PER_ELEMENT * vertexCount;
 
-                    const uvCount = new Uint32Array(arrayBuffer, i, 1)[0];
-                    i += Uint32Array.BYTES_PER_ELEMENT;
-                    const uvArray = new Float32Array(arrayBuffer, i, uvCount);
-                    i += Float32Array.BYTES_PER_ELEMENT * uvCount;
+                      const uvCount = new Uint32Array(arrayBuffer, i, 1)[0];
+                      i += Uint32Array.BYTES_PER_ELEMENT;
+                      const uvArray = new Float32Array(arrayBuffer, i, uvCount);
+                      i += Float32Array.BYTES_PER_ELEMENT * uvCount;
 
-                    const textureDataSize = new Uint32Array(arrayBuffer, i, 1)[0];
-                    i += Uint32Array.BYTES_PER_ELEMENT;
-                    const textureData = new Uint8Array(arrayBuffer, i, textureDataSize);
-                    i += Uint8Array.BYTES_PER_ELEMENT * textureDataSize;
+                      const textureDataSize = new Uint32Array(arrayBuffer, i, 1)[0];
+                      i += Uint32Array.BYTES_PER_ELEMENT;
+                      const textureData = new Uint8Array(arrayBuffer, i, textureDataSize);
+                      i += Uint8Array.BYTES_PER_ELEMENT * textureDataSize;
 
-                    let textureImagePromise;
-                    if (textureData.length > 0) {
-                      return createImageBitmap(new Blob([textureData], {type: 'image/jpeg'}))
-                        .then(textureImage => {
-                          const update = {
-                            vertexArray,
-                            vertexCount,
-                            uvArray,
-                            uvCount,
-                            textureData,
-                            textureImage,
-                          };
-                          _loadTerrainMesh(terrainMesh, update);
-                        });
-                    } else {
-                      return Promise.resolve(null);
-                    }
-                  })
-                  .catch(err => {
-                    console.warn(err.stack);
-                  })
-                  .finally(next);
+                      let textureImagePromise;
+                      if (textureData.length > 0) {
+                        return createImageBitmap(new Blob([textureData], {type: 'image/jpeg'}))
+                          .then(textureImage => {
+                            const update = {
+                              vertexArray,
+                              vertexCount,
+                              uvArray,
+                              uvCount,
+                              textureData,
+                              textureImage,
+                            };
+                            _loadTerrainMesh(terrainMesh, update);
+                          });
+                      } else {
+                        return Promise.resolve(null);
+                      }
+                    })
+                    .catch(err => {
+                      console.warn(err.stack);
+                    })
+                    .finally(() => {
+                      next();
+                    })
+                );
               };
               const _tryRun = () => {
                 const {next, running} = terrainMesh;
