@@ -3,7 +3,7 @@ Reality projection server for Magic Leap
 
 This is a hub server for reality projection using [Magic Leap](https://magicleap.com) and [Exokit](https://github.com/webmixedreality/exokit).
 
-Roger lets you project a layer of real reality (live 3D textured mesh) to a multiplayer world on the web. It also supports WebXR, for projecting the real reality to a fake reality in VR/AR.
+Roger lets you project a layer of reality (live 3D textured mesh) to a multiplayer world on the web. It also supports WebXR, for projecting the real reality to a fake reality in VR/AR.
 
 ### Usage
 
