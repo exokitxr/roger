@@ -556,7 +556,8 @@ const _makeTerrainMesh = meshId => {
   mesh.visible = false;
   mesh.frustumCulled = false;
   mesh.meshId = meshId;
-  mesh.promise = Promise.resolve();
+  mesh.running = false;
+  mesh.next = null;
 
   return mesh;
 };
@@ -969,7 +970,7 @@ connection.onopen = () => {
               const {id, dataId} = message;
 
               const terrainMesh = _getTerrainMesh(id);
-              terrainMesh.promise = terrainMesh.promise.finally(() =>
+              terrainMesh.next = next => {
                 fetch('/data/' + dataId)
                   .then(res => res.ok ? res.arrayBuffer() : Promise.reject(new Error('not ok')))
                   .then(arrayBuffer => {
@@ -1010,7 +1011,22 @@ connection.onopen = () => {
                   .catch(err => {
                     console.warn(err.stack);
                   })
-              );
+                  .finally(next);
+              };
+              const _tryRun = () => {
+                const {next, running} = terrainMesh;
+                if (next && !running) {
+                  terrainMesh.next = null;
+                  terrainMesh.running = true;
+
+                  next(() => {
+                    terrainMesh.running = false;
+
+                    _tryRun();
+                  });
+                }
+              };
+              _tryRun();
             } else {
               const {id} = message;
               const index = terrainMeshes.findIndex(terrainMesh => terrainMesh.meshId === id);
