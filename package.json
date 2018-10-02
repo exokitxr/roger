@@ -1,0 +1,24 @@
+{
+  "name": "roger",
+  "version": "0.0.1",
+  "description": "Reality projection server for Exokit",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webmixedreality/roger.git"
+  },
+  "author": "Avaer Kazmer <a@modules.io>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/webmixedreality/roger/issues"
+  },
+  "homepage": "https://github.com/webmixedreality/roger#readme",
+  "dependencies": {
+    "express": "^4.16.3",
+    "ws": "^6.0.0"
+  }
+}
