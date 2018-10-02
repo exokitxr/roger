@@ -498,7 +498,7 @@ const fakeFloat32Array = new Float32Array(fakeArrayBuffer, 0, 3);
 const fakeUint16Array = new Uint16Array(fakeArrayBuffer, 0, 3);
 const _makeTerrainMesh = meshId => {
   const geometry = new THREE.BufferGeometry();
-  const gl = renderer.getContext();
+  // const gl = renderer.getContext();
   // const attributes = renderer.getAttributes();
 
   geometry.addAttribute('position', new THREE.BufferAttribute(fakeFloat32Array, 3));
