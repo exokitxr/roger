@@ -68,7 +68,7 @@ const server = http.createServer((req, res) => {
       const id = match[1];
       let data = dataQueue.get(id);
       if (data) {
-        data = Buffer.from(data);
+        // data = Buffer.from(data);
         res.setHeader('Content-Type', 'application/octet-stream');
         res.end(data);
 
@@ -94,27 +94,26 @@ const server = http.createServer((req, res) => {
         const b = Buffer.concat(bs);
         meshes.set(id, b);
 
-        if (connections.length > 0) {
-          const dataId = _getDataId();
-          const updateSpecs = [
-            JSON.stringify({
-              method: 'mesh',
-              type: 'update',
-              id,
-              dataId,
-            }),
-          ];
+        // console.log('set terrain mesh data', [id, b.constructor.name, new Uint32Array(b.buffer, b.byteOffset, 1)[0]]); // XXX
 
-          for (let i = 0; i < connections.length; i++) {
-            const c = connections[i];
+        for (let i = 0; i < connections.length; i++) {
+          const c = connections[i];
+          if (c.readyState === ws.OPEN && !c.isHost) {
+            const dataId = _getDataId();
+            const updateSpecs = [
+              JSON.stringify({
+                method: 'mesh',
+                type: 'update',
+                id,
+                dataId,
+              }),
+            ];
 
-            if (c.readyState === ws.OPEN) {
-              for (let j = 0; j < updateSpecs.length; j++) {
-                c.send(updateSpecs[j]);
-              }
+            for (let j = 0; j < updateSpecs.length; j++) {
+              c.send(updateSpecs[j]);
             }
+            dataQueue.set(dataId, b);
           }
-          dataQueue.set(dataId, terrainMeshData[id]);
         }
 
         res.end();
@@ -131,22 +130,19 @@ const server = http.createServer((req, res) => {
       if (meshes.has(id)) {
         meshes.delete(id);
 
-        if (connections.length > 0) {
-          const updateSpecs = [
-            JSON.stringify({
-              method: 'mesh',
-              type: 'remove',
-              id,
-            }),
-          ];
+        for (let i = 0; i < connections.length; i++) {
+          const c = connections[i];
+          if (c.readyState === ws.OPEN && !c.isHost) {
+            const updateSpecs = [
+              JSON.stringify({
+                method: 'mesh',
+                type: 'remove',
+                id,
+              }),
+            ];
 
-          for (let i = 0; i < connections.length; i++) {
-            const c = connections[i];
-
-            if (c.readyState === ws.OPEN) {
-              for (let j = 0; j < updateSpecs.length; j++) {
-                c.send(updateSpecs[j]);
-              }
+            for (let j = 0; j < updateSpecs.length; j++) {
+              c.send(updateSpecs[j]);
             }
           }
         }
@@ -169,10 +165,11 @@ const server = http.createServer((req, res) => {
 const wss = new ws.Server({
   server,
 });
-wss.on('connection', c => {
+wss.on('connection', (c, req) => {
   console.log('open connection');
 
-  const localPlayerId = Math.random().toString(36).substring(7);
+  c.isHost = /\?host=true/.test(req.url);
+  c.playerId = Math.random().toString(36).substring(7);
 
   // c.mesh = _makePlayerMesh();
   // scene2.add(c.mesh);
@@ -197,7 +194,7 @@ wss.on('connection', c => {
   };
   const _sendPlayers = () => {
     const updateSpecs = [];
-    meshes.forEach((player, id) => {
+    players.forEach((player, id) => {
       const {position, rotation, controllers} = player;
       updateSpecs.push(
         JSON.stringify({
@@ -213,7 +210,6 @@ wss.on('connection', c => {
           ],
         }),
       );
-      dataQueue.set(dataId, data);
     });
     for (let i = 0; i < updateSpecs.length; i++) {
       c.send(updateSpecs[i]);
@@ -235,7 +231,9 @@ wss.on('connection', c => {
       }
     }
   }; */
-  _sendTerrains();
+  if (!c.isHost) {
+    _sendTerrains();
+  }
   _sendPlayers();
   // _sendPaints();
 
@@ -327,7 +325,7 @@ wss.on('connection', c => {
           const player = message.players[0];
           const {position, rotation, controllers} = player;
 
-          players.set(localPlayerId, {
+          players.set(c.playerId, {
             position,
             rotation,
             controllers,
@@ -340,7 +338,7 @@ wss.on('connection', c => {
               players: [
                 {
                   type: 'update',
-                  id: localPlayerId,
+                  id: c.playerId,
                   position,
                   rotation,
                   controllers,
@@ -376,13 +374,15 @@ wss.on('connection', c => {
 
     connections.splice(connections.indexOf(c), 1);
 
+    players.delete(c.playerId);
+
     if (connections.length > 0) {
       const updateSpec = {
         method: 'transform',
         players: [
           {
             type: 'remove',
-            id: localPlayerId,
+            id: c.playerId,
           },
         ],
       };
