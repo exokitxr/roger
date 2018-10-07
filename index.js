@@ -130,11 +130,9 @@ const server = http.createServer((req, res) => {
         const b = Buffer.concat(bs);
         paints.set(id, b);
 
-        // console.log('set terrain mesh data', [id, b.constructor.name, new Uint32Array(b.buffer, b.byteOffset, 1)[0]]); // XXX
-
         for (let i = 0; i < connections.length; i++) {
           const c = connections[i];
-          if (c.readyState === ws.OPEN && !c.isHost) {
+          if (c.readyState === ws.OPEN) {
             const dataId = _getDataId();
             const updateSpecs = [
               JSON.stringify({
@@ -193,7 +191,7 @@ const server = http.createServer((req, res) => {
 
       for (let i = 0; i < connections.length; i++) {
         const c = connections[i];
-        if (c.readyState === ws.OPEN && !c.isHost) {
+        if (c.readyState === ws.OPEN) {
           const updateSpecs = [
             JSON.stringify({
               method: 'paint',

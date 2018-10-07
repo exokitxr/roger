@@ -903,19 +903,16 @@ const _makePaintMesh = meshId => {
 
         geometry.setDrawRange(0, lastPoint * 2);
 
-        if (connection && connection.readyState === WebSocket.OPEN) {
-          const updateSpecs = [
-            JSON.stringify({
-              method: 'paint',
-              meshId: mesh.meshId,
-            }),
-            mesh.getBuffer(lastPoint),
-          ];
-
-          for (let i = 0; i < updateSpecs.length; i++) {
-            connection.send(updateSpecs[i]);
-          }
-        }
+        fetchQueued(() =>
+          fetch('/paint/' + mesh.meshId, {
+            method: 'PUT',
+            body: mesh.getBuffer(lastPoint),
+          })
+            .then(res => res.ok ? Promise.resolve() : Promise.reject(new Error('not ok')))
+            .catch(err => {
+              console.warn(err.stack);
+            })
+        );
       }
     }
   };
@@ -1220,13 +1217,15 @@ const _bootKeyboard = () => {
       paintMesh = null;
       paintControllerIndex = -1;
 
-      if (connection && connection.readyState === WebSocket.OPEN) {
-        const updateSpec = {
-          method: 'clear',
-        };
-        const updateSpecString = JSON.stringify(updateSpec);
-        connection.send(updateSpecString);
-      }
+      fetchQueued(() =>
+        fetch('/paint', {
+          method: 'DELETE',
+        })
+          .then(res => res.ok ? Promise.resolve() : Promise.reject(new Error('not ok')))
+          .catch(err => {
+            console.warn(err.stack);
+          })
+      );
     }
   });
 };
