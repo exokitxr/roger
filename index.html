@@ -972,7 +972,6 @@ connection.onopen = () => {
 
   let running = false;
   const queue = [];
-  let pendingMessage = null;
   const _handleData = data => {
     if (!running) {
       running = true;
@@ -1086,16 +1085,28 @@ connection.onopen = () => {
             break;
           }
           case 'paint': {
-            pendingMessage = message;
+            const {type} = message;
 
-            _next();
-            break;
-          }
-          case 'clear': {
-            _clearPaintMeshes();
+            if (type === 'update') {
+              const {id, dataId} = message;
 
-            paintMesh = null;
-            paintControllerIndex = -1;
+              fetchQueued(() =>
+                fetch('/data/' + dataId)
+                  .then(res => res.ok ? res.arrayBuffer() : Promise.reject(new Error('not ok')))
+                  .then(arrayBuffer => {
+                    const paintMesh = _getPaintMesh(id);
+                    paintMesh.load(arrayBuffer);
+                  })
+                  .catch(err => {
+                    console.warn(err.stack);
+                  })
+              );
+            } else {
+              _clearPaintMeshes();
+
+              paintMesh = null;
+              paintControllerIndex = -1;
+            }
 
             _next();
             break;
@@ -1108,33 +1119,9 @@ connection.onopen = () => {
           }
         }
       } else {
-        if (pendingMessage) {
-          const {method} = pendingMessage;
-          const message = data;
+        console.warn('out of order binary message', data.byteLength);
 
-          switch (method) {
-            case 'paint': {
-              const {meshId} = pendingMessage;
-              const paintMesh = _getPaintMesh(meshId);
-              paintMesh.load(data);
-
-              _next();
-              break;
-            }
-            default: {
-              console.warn('unknown pending message method', method);
-
-              _next();
-              break;
-            }
-          }
-
-          pendingMessage = null;
-        } else {
-          console.warn('out of order binary message', data.byteLength);
-
-          _next();
-        }
+        _next();
       }
     } else {
       queue.push(data);
@@ -1206,7 +1193,7 @@ const _bootKeyboard = () => {
   controls = new THREE.PointerLockControls(camera);
   scene.add(controls.getObject());
 
-  /* window.addEventListener('mousedown', () => {
+  window.addEventListener('mousedown', () => {
     if (!paintMesh) {
       paintMesh = _getPaintMesh();
     }
@@ -1215,7 +1202,7 @@ const _bootKeyboard = () => {
     if (paintMesh) {
       paintMesh = null;
     }
-  }); */
+  });
   window.addEventListener('keydown', e => {
     if (e.which === 81) { // q
       qDown = true;

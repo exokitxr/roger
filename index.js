@@ -7,6 +7,7 @@ const PORT = 8001;
 
 const connections = [];
 const meshes = new Map();
+const paints = new Map();
 const players = new Map();
 let dataIds = 0;
 const _getDataId = () => (dataIds++) + '';
@@ -118,13 +119,48 @@ const server = http.createServer((req, res) => {
 
         res.end();
       });
+    } else if (match = req.url.match(/\/paint\/(.+?)$/)) {
+      const id = match[1];
+
+      const bs = [];
+      req.on('data', d => {
+        bs.push(d);
+      });
+      req.on('end', () => {
+        const b = Buffer.concat(bs);
+        paints.set(id, b);
+
+        // console.log('set terrain mesh data', [id, b.constructor.name, new Uint32Array(b.buffer, b.byteOffset, 1)[0]]); // XXX
+
+        for (let i = 0; i < connections.length; i++) {
+          const c = connections[i];
+          if (c.readyState === ws.OPEN && !c.isHost) {
+            const dataId = _getDataId();
+            const updateSpecs = [
+              JSON.stringify({
+                method: 'paint',
+                type: 'update',
+                id,
+                dataId,
+              }),
+            ];
+
+            for (let j = 0; j < updateSpecs.length; j++) {
+              c.send(updateSpecs[j]);
+            }
+            dataQueue.set(dataId, b);
+          }
+        }
+
+        res.end();
+      });
     } else {
       res.statusCode = 404;
       res.end();
     }
   } else if (req.method === 'DELETE') {
     let match;
-    if (match = req.url.match(/\/mesh\/(.+?)$/)) {
+    if (match = req.url.match(/^\/mesh\/(.+?)$/)) {
       const id = match[1];
 
       if (meshes.has(id)) {
@@ -151,6 +187,24 @@ const server = http.createServer((req, res) => {
       } else {
         res.statusCode = 404;
         res.end();
+      }
+    } else if (match = req.url.match(/^\/paint$/)) {
+      paints.clear();
+
+      for (let i = 0; i < connections.length; i++) {
+        const c = connections[i];
+        if (c.readyState === ws.OPEN && !c.isHost) {
+          const updateSpecs = [
+            JSON.stringify({
+              method: 'paint',
+              type: 'clear',
+            }),
+          ];
+
+          for (let j = 0; j < updateSpecs.length; j++) {
+            c.send(updateSpecs[j]);
+          }
+        }
       }
     } else {
       res.statusCode = 404;
@@ -192,6 +246,24 @@ wss.on('connection', (c, req) => {
       c.send(updateSpecs[i]);
     }
   };
+  const _sendPaints = () => {
+    const updateSpecs = [];
+    paints.forEach((data, id) => {
+      const dataId = _getDataId();
+      updateSpecs.push(
+        JSON.stringify({
+          method: 'paint',
+          type: 'update',
+          id,
+          dataId,
+        }),
+      );
+      dataQueue.set(dataId, data);
+    });
+    for (let i = 0; i < updateSpecs.length; i++) {
+      c.send(updateSpecs[i]);
+    }
+  };
   const _sendPlayers = () => {
     const updateSpecs = [];
     players.forEach((player, id) => {
@@ -215,27 +287,11 @@ wss.on('connection', (c, req) => {
       c.send(updateSpecs[i]);
     }
   };
-  /* const _sendPaints = () => {
-    for (let i = 0; i < paintMeshes.length; i++) {
-      const paintMesh = paintMeshes[i];
-      const updateSpecs = [
-        JSON.stringify({
-          method: 'paint',
-          meshId: paintMesh.meshId,
-        }),
-        paintMesh.getBuffer(),
-      ];
-
-      for (let j = 0; j < updateSpecs.length; j++) {
-        c.send(updateSpecs[j]);
-      }
-    }
-  }; */
   if (!c.isHost) {
     _sendTerrains();
   }
+  _sendPaints();
   _sendPlayers();
-  // _sendPaints();
 
   connections.push(c);
 
